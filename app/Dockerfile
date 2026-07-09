@@ -22,7 +22,9 @@ FROM python:3.12-slim AS runtime
 
 # libpq5 is the only OS package psycopg2-binary needs at runtime on slim.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 curl \
+    && apt-get install -y --no-install-recommends \
+        libpq5=17.10-0+deb13u1 \
+        curl=8.14.1-2+deb13u3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Dedicated non-root user with no shell and no home-directory clutter.
