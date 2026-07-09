@@ -85,7 +85,15 @@ spec:
               name: tmp
       restartPolicy: Always
       securityContext:
-        fsGroup: 999            # postgres group in the official image
+        # postgres:16.3-alpine ships the postgres user as uid/gid 70.
+        # Running as that user (not root) makes the image entrypoint skip its
+        # privileged chown of PGDATA — which would otherwise fail because the
+        # container drops ALL capabilities (no CAP_CHOWN). fsGroup makes the
+        # PVC and emptyDir volumes group-writable by the same user.
+        fsGroup: 70
+        runAsGroup: 70
+        runAsNonRoot: true
+        runAsUser: 70
       serviceAccountName: postgres
       volumes:
         # Writable scratch dirs required because the root filesystem is read-only.
