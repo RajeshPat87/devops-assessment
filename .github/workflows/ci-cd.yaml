@@ -54,7 +54,7 @@ jobs:
         run: docker build -t $IMAGE:$TAG -t $IMAGE:1.0.0 app/
 
       - name: Scan image (Trivy - fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: hello-web:1.0.0
           severity: HIGH,CRITICAL
