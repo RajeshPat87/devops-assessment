@@ -1,0 +1,14 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/*.tfvars
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Misc
+*.tar
+response.json

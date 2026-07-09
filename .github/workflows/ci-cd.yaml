@@ -1,0 +1,121 @@
+name: ci-cd
+
+# Triggers on code changes to the app, manifests, or the pipeline itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "k8s/**"
+      - ".github/workflows/ci-cd.yaml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "k8s/**"
+
+env:
+  IMAGE: hello-web
+  TAG: ${{ github.sha }}
+
+jobs:
+  # -------------------------------------------------------------
+  # 1. VALIDATE - fail fast before anything is built or deployed
+  # -------------------------------------------------------------
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Kubernetes manifests (kube-linter)
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: k8s
+          config: .kube-linter.yaml
+
+      - name: Lint Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: app/Dockerfile
+
+  # -------------------------------------------------------------
+  # 2. BUILD + SCAN
+  # -------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t $IMAGE:$TAG -t $IMAGE:1.0.0 app/
+
+      - name: Scan image (Trivy - fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: hello-web:1.0.0
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Save image artifact
+        run: docker save $IMAGE:1.0.0 -o image.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: image.tar
+          retention-days: 1
+
+  # -------------------------------------------------------------
+  # 3. DRY-RUN + DEPLOY
+  # An ephemeral kind cluster in CI plays the role of the target
+  # cluster so every run is reproducible from scratch. Against a
+  # long-lived cluster this job would instead use environment
+  # protection rules and a kubeconfig from OIDC/secrets.
+  # -------------------------------------------------------------
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Load image into kind
+        run: |
+          docker load -i image.tar
+          kind load docker-image hello-web:1.0.0 --name ci
+
+      - name: Create namespace
+        run: kubectl create namespace demo-app --dry-run=client -o yaml | kubectl apply -f -
+
+      # DRY-RUN stage: server-side dry-run validates against the real
+      # API server (admission, schema, immutable fields) without
+      # persisting anything. This is the k8s equivalent of terraform plan.
+      - name: Dry-run manifests
+        run: kubectl apply -f k8s/ --dry-run=server
+
+      - name: Apply manifests
+        run: kubectl apply -f k8s/
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n demo-app rollout status statefulset/postgres --timeout=180s
+          kubectl -n demo-app rollout status deployment/hello-web --timeout=180s
+
+      - name: Smoke test
+        run: |
+          kubectl -n demo-app port-forward svc/hello-web 8080:80 &
+          sleep 5
+          curl -fsS http://localhost:8080/readyz
+          curl -fsS http://localhost:8080/ | tee response.json
+          grep -q "Hello World" response.json

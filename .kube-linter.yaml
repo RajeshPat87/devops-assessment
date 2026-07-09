@@ -1,0 +1,10 @@
+checks:
+  addAllBuiltIn: true
+  exclude:
+    # Postgres official image needs to run as its own user (uid 999);
+    # the web tier enforces runAsNonRoot explicitly.
+    - "run-as-non-root"
+    # Single-node lab: anti-affinity across nodes is not possible.
+    - "no-anti-affinity"
+    # NodePort is intentional for local access; would be Ingress/LB in prod.
+    - "exposed-services"
