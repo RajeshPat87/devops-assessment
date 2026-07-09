@@ -1,69 +1,100 @@
-apiVersion: apps/v1
-kind: StatefulSet
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: postgres
-  namespace: demo-app
   labels:
     app.kubernetes.io/name: postgres
     app.kubernetes.io/part-of: demo-app
+  name: postgres
+  namespace: demo-app
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    email: "rajeshsqldba87@gmail.com"
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: demo-app
+    owner: rajesh
+  name: postgres
+  namespace: demo-app
 spec:
-  serviceName: postgres
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: postgres
+  serviceName: postgres
   template:
     metadata:
       labels:
         app.kubernetes.io/name: postgres
         app.kubernetes.io/part-of: demo-app
     spec:
-      securityContext:
-        fsGroup: 999            # postgres group in the official image
       containers:
-        - name: postgres
-          image: postgres:16.3-alpine
-          ports:
-            - containerPort: 5432
-              name: pg
-          env:
+        - env:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
                   key: DB_USER
+                  name: db-credentials
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
                   key: DB_PASSWORD
+                  name: db-credentials
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
                   key: POSTGRES_DB
+                  name: db-credentials
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "appuser", "-d", "appdb"]
-            initialDelaySeconds: 5
-            periodSeconds: 10
+          image: postgres:16.3-alpine
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "appuser", "-d", "appdb"]
             initialDelaySeconds: 30
             periodSeconds: 20
+          name: postgres
+          ports:
+            - containerPort: 5432
+              name: pg
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "appuser", "-d", "appdb"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
           volumeMounts:
-            - name: pgdata
-              mountPath: /var/lib/postgresql/data
+            - mountPath: /var/lib/postgresql/data
+              name: pgdata
+            - mountPath: /var/run/postgresql
+              name: run
+            - mountPath: /tmp
+              name: tmp
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 999            # postgres group in the official image
+      serviceAccountName: postgres
+      volumes:
+        # Writable scratch dirs required because the root filesystem is read-only.
+        - emptyDir: {}
+          name: run
+        - emptyDir: {}
+          name: tmp
+  updateStrategy:
+    type: RollingUpdate
   # Persistent Volume Claim template: kind ships with the local-path
   # provisioner as the default StorageClass, so this binds automatically.
   volumeClaimTemplates:
@@ -78,16 +109,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres
-  namespace: demo-app
   labels:
     app.kubernetes.io/name: postgres
     app.kubernetes.io/part-of: demo-app
+  name: postgres
+  namespace: demo-app
 spec:
   clusterIP: None   # headless, stable DNS for the StatefulSet
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: pg
   selector:
     app.kubernetes.io/name: postgres
-  ports:
-    - port: 5432
-      targetPort: pg
-      name: pg

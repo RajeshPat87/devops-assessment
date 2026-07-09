@@ -8,3 +8,14 @@ checks:
     - "no-anti-affinity"
     # NodePort is intentional for local access; would be Ingress/LB in prod.
     - "exposed-services"
+    # Single-node lab: 3 replicas cannot be scheduled and add no HA value here.
+    - "minimum-three-replicas"
+    # Single-node lab: node-affinity has nothing to target with one node.
+    - "no-node-affinity"
+    # Cluster runs kube-dns defaults; per-pod DNSConfig is unnecessary for a lab.
+    - "dnsconfig-options"
+    # Lab has no NetworkPolicy; traffic isolation would be added in prod.
+    - "non-isolated-pod"
+    # The postgres official image only accepts credentials via env vars, and the
+    # web app reads DB creds from env; file-mounted secrets need app changes.
+    - "read-secret-from-env-var"
