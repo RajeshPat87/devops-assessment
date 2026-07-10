@@ -128,8 +128,32 @@ jobs:
 
       - name: Smoke test
         run: |
+          set -euo pipefail
+
+          # Start the port-forward and make sure it is torn down on exit.
           kubectl -n demo-app port-forward svc/hello-web 8080:80 &
-          sleep 5
-          curl -fsS http://localhost:8080/readyz
+          pf_pid=$!
+          trap 'kill "$pf_pid" 2>/dev/null || true' EXIT
+
+          # Wait until the port-forward is actually accepting connections
+          # rather than assuming a fixed sleep is long enough.
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:8080/healthz; then
+              break
+            fi
+            [ "$i" -eq 30 ] && { echo "port-forward never became reachable"; exit 1; }
+            sleep 2
+          done
+
+          # /readyz opens a fresh DB connection on every call, so a single
+          # transient blip should not fail the pipeline. Retry until ready.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/readyz; then
+              break
+            fi
+            [ "$i" -eq 30 ] && { echo "/readyz never returned healthy"; exit 1; }
+            sleep 2
+          done
+
           curl -fsS http://localhost:8080/ | tee response.json
           grep -q "Hello World" response.json
