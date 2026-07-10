@@ -1,0 +1,11 @@
+hello-app deployed to namespace "{{ .Release.Namespace }}" (release "{{ .Release.Name }}").
+
+Web tier : Deployment/hello-web   ({{ .Values.web.replicas }} replicas, {{ .Values.web.service.type }} :{{ .Values.web.service.nodePort }})
+Database : StatefulSet/postgres   (1 replica, {{ .Values.postgres.storage }} PVC)
+
+Check rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/hello-web
+  kubectl -n {{ .Release.Namespace }} rollout status statefulset/postgres
+
+Reach the app (kind maps NodePort {{ .Values.web.service.nodePort }} -> host 8080):
+  curl http://localhost:8080/

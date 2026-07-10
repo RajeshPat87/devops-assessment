@@ -1,8 +1,8 @@
 # Lead DevOps Engineer - Technical Assessment
 
 Single-node Kubernetes cluster provisioned with Terraform (kind), running a
-two-tier application (Flask + PostgreSQL) with a Prometheus/Grafana monitoring
-stack, deployed through a GitHub Actions pipeline.
+two-tier application (Flask + PostgreSQL) packaged as a Helm chart, with a
+Prometheus/Grafana monitoring stack, deployed through a GitHub Actions pipeline.
 
 Architecture decisions, scalability path, SPOF post-mortem and trade-offs are
 in [DESIGN.md](DESIGN.md).
@@ -10,10 +10,10 @@ in [DESIGN.md](DESIGN.md).
 ```
 ├── terraform/            # kind cluster + namespaces + kube-prometheus-stack
 ├── app/                  # Flask app + multi-stage Dockerfile
-├── k8s/                  # ConfigMap, Secret, Postgres StatefulSet+PVC, Web Deployment
+├── chart/                # Helm chart: ConfigMap, Secret, Postgres StatefulSet+PVC, Web Deployment
 ├── .github/workflows/    # ci-cd.yaml (validate -> build+scan -> dry-run -> deploy)
 ├── scripts/              # setup.sh / destroy.sh
-└── .kube-linter.yaml     # manifest lint config used by CI
+└── .kube-linter.yaml     # lint config applied to the rendered chart in CI
 ```
 
 ## Prerequisites
@@ -24,6 +24,7 @@ in [DESIGN.md](DESIGN.md).
 | Terraform | 1.5+           | OpenTofu 1.6+ also works       |
 | kind      | 0.22+          | needed for `kind load`         |
 | kubectl   | 1.29+          |                                |
+| Helm      | 3.13+          | app is packaged as a chart     |
 
 8 GB free RAM recommended (Prometheus stack included).
 
@@ -56,13 +57,14 @@ docker build -t hello-web:1.0.0 app/
 kind load docker-image hello-web:1.0.0 --name devops-assessment
 ```
 
-**3. Deploy the two-tier app (dry-run first)**
+**3. Deploy the two-tier app with Helm (dry-run first)**
+
+The `demo-app` namespace is already created by Terraform in step 1.
 
 ```bash
-kubectl apply -f k8s/ --dry-run=server   # validates against the API server
-kubectl apply -f k8s/
-kubectl -n demo-app rollout status statefulset/postgres
-kubectl -n demo-app rollout status deployment/hello-web
+# server-side dry-run: renders the chart and validates against the API server
+helm upgrade --install hello-app chart/ --namespace demo-app --dry-run=server
+helm upgrade --install hello-app chart/ --namespace demo-app --wait --timeout 180s
 ```
 
 **4. Verify**
@@ -93,12 +95,13 @@ kubectl -n monitoring port-forward svc/kps-kube-prometheus-stack-prometheus 9090
 
 Workflow: [.github/workflows/ci-cd.yaml](.github/workflows/ci-cd.yaml)
 
-1. **validate** - kube-linter on `k8s/`, hadolint on the Dockerfile
+1. **validate** - `helm lint`, then kube-linter on the rendered chart, plus
+   hadolint on the Dockerfile
 2. **build** - docker build, Trivy scan (fails on HIGH/CRITICAL)
-3. **deploy** (`master`/`main` only) - ephemeral kind cluster, `kubectl apply
-   --dry-run=server`, apply, rollout wait, curl smoke test
+3. **deploy** (`master`/`main` only) - ephemeral kind cluster, `helm upgrade
+   --install --dry-run=server`, then `--wait` install, curl smoke test
 
-Triggers on push/PR to `master` or `main` touching `app/`, `k8s/` or the
+Triggers on push/PR to `master` or `main` touching `app/`, `chart/` or the
 workflow itself (`workflow_dispatch` allows manual runs). Every run starts from
 a fresh cluster, so a green pipeline means the whole stack is reproducible from
 scratch.
@@ -106,7 +109,9 @@ scratch.
 To reproduce the CI validation locally:
 
 ```bash
-kube-linter lint k8s/ --config .kube-linter.yaml
+helm lint chart/
+helm template hello-app chart/ --namespace demo-app > rendered.yaml
+kube-linter lint rendered.yaml --config .kube-linter.yaml
 docker run --rm -i hadolint/hadolint < app/Dockerfile
 ```
 
@@ -127,8 +132,9 @@ git checkout -b fix/my-change master
 **2. Make a minor change and validate it locally first**
 
 ```bash
-# e.g. edit a manifest or app/app.py, then run the same gates CI will run:
-kube-linter lint k8s/ --config .kube-linter.yaml
+# e.g. edit the chart or app/app.py, then run the same gates CI will run:
+helm lint chart/
+helm template hello-app chart/ --namespace demo-app | kube-linter lint - --config .kube-linter.yaml
 docker run --rm -i hadolint/hadolint < app/Dockerfile
 ```
 
@@ -150,7 +156,7 @@ gh pr create --base master --head fix/my-change \
 
 **5. Watch the feature-branch pipeline (validate + build)**
 
-On a PR touching `app/` or `k8s/`, CI runs `validate` and `build`; `deploy` is
+On a PR touching `app/` or `chart/`, CI runs `validate` and `build`; `deploy` is
 skipped because the ref is not `master`.
 
 ```bash
@@ -174,7 +180,7 @@ gh run watch "$(gh run list --workflow=ci-cd.yaml --branch master --event push \
 
 Trigger the pipeline on any branch without a push or PR — handy for validating
 a branch before opening the PR, or for changes the path filters skip (the
-`pull_request` trigger only watches `app/**` and `k8s/**`, so a PR that touches
+`pull_request` trigger only watches `app/**` and `chart/**`, so a PR that touches
 *only* `.github/**` will not auto-run and should be validated this way):
 
 ```bash

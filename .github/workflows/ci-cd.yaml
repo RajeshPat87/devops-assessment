@@ -8,13 +8,13 @@ on:
     branches: [master, main]
     paths:
       - "app/**"
-      - "k8s/**"
+      - "chart/**"
       - ".github/workflows/ci-cd.yaml"
   pull_request:
     branches: [master, main]
     paths:
       - "app/**"
-      - "k8s/**"
+      - "chart/**"
   workflow_dispatch:
 
 env:
@@ -30,10 +30,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lint Kubernetes manifests (kube-linter)
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm chart (helm lint)
+        run: helm lint chart/
+
+      # Render the chart and lint the resulting manifests, so kube-linter
+      # checks exactly what Helm will apply to the cluster.
+      - name: Render chart
+        run: |
+          mkdir -p rendered
+          helm template hello-app chart/ --namespace demo-app > rendered/manifests.yaml
+
+      - name: Lint rendered manifests (kube-linter)
         uses: stackrox/kube-linter-action@v1
         with:
-          directory: k8s
+          directory: rendered
           config: .kube-linter.yaml
 
       - name: Lint Dockerfile (hadolint)
@@ -84,6 +97,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
         with:
@@ -101,19 +117,14 @@ jobs:
       - name: Create namespace
         run: kubectl create namespace demo-app --dry-run=client -o yaml | kubectl apply -f -
 
-      # DRY-RUN stage: server-side dry-run validates against the real
-      # API server (admission, schema, immutable fields) without
-      # persisting anything. This is the k8s equivalent of terraform plan.
-      - name: Dry-run manifests
-        run: kubectl apply -f k8s/ --dry-run=server
+      # DRY-RUN stage: server-side dry-run renders the chart and validates it
+      # against the real API server (admission, schema, immutable fields)
+      # without persisting anything. This is the k8s equivalent of terraform plan.
+      - name: Helm dry-run (server-side)
+        run: helm upgrade --install hello-app chart/ --namespace demo-app --dry-run=server
 
-      - name: Apply manifests
-        run: kubectl apply -f k8s/
-
-      - name: Wait for rollout
-        run: |
-          kubectl -n demo-app rollout status statefulset/postgres --timeout=180s
-          kubectl -n demo-app rollout status deployment/hello-web --timeout=180s
+      - name: Deploy chart (--wait blocks until pods are Ready)
+        run: helm upgrade --install hello-app chart/ --namespace demo-app --wait --timeout 180s
 
       - name: Smoke test
         run: |

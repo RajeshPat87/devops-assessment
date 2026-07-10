@@ -8,11 +8,13 @@
 
 **StatefulSet for Postgres, Deployment for the web tier.** Databases want stable network identity and per-replica storage, which is exactly what a StatefulSet with `volumeClaimTemplates` gives. The web tier is stateless, so a Deployment with 2 replicas and a `maxUnavailable: 0` rolling update gives zero-downtime deploys even on this small setup.
 
-**ConfigMap vs Secret split.** Everything non-sensitive (greeting, DB host/port/name) sits in a ConfigMap and is injected with `envFrom`. Credentials sit in a Secret and are injected per-key. The Secret is committed to git only because this is a self-contained lab that must be reproducible from scratch. Section 4 covers what I would do instead in a real repo.
+**ConfigMap vs Secret split.** Everything non-sensitive (greeting, DB host/port/name) sits in a ConfigMap and is injected with `envFrom`. Credentials sit in a Secret and are injected per-key. The Secret is rendered from chart values and committed to git only because this is a self-contained lab that must be reproducible from scratch. Section 4 covers what I would do instead in a real repo.
+
+**Packaged as a Helm chart.** The two tiers live in a small Helm chart (`chart/`) rather than as loose `kubectl apply` YAML. The tunable knobs — image tag, replica count, resource requests/limits, DB config, ownership metadata — are lifted into `values.yaml`, while the security-critical bits (non-root, dropped capabilities, read-only rootfs, probes) stay fixed in the templates. This is what lets the pipeline run `helm lint` and deploy with a single `helm upgrade --install`, and it is the natural seam for multiple environments later (Section 5 and 6). The monitoring stack is *also* Helm (`kube-prometheus-stack`), so the whole repo consumes and produces charts consistently.
 
 **kube-prometheus-stack for observability.** K9s and Lens are viewers, not monitoring. Prometheus + Grafana gives actual scraping, dashboards, and the option to alert. One Helm release installs Prometheus, Grafana, node-exporter and kube-state-metrics. Grafana is exposed on a NodePort mapped to `localhost:3000` so it works without an Ingress controller. Alertmanager is disabled and Prometheus retention is 2 days because a single-node lab does not need either; both are one-line changes to turn back on.
 
-**GitHub Actions for CI/CD.** Three jobs: validate (kube-linter + hadolint), build + scan (docker build + Trivy failing on HIGH/CRITICAL), and deploy (server-side dry-run, apply, rollout wait, curl smoke test). The deploy job spins up its own kind cluster so every pipeline run is reproducible with zero standing infrastructure. My day-to-day background is Azure DevOps; I chose GitHub Actions here because the repo lives on GitHub and the reviewer can see runs without any external service.
+**GitHub Actions for CI/CD.** Three jobs: validate (`helm lint`, then kube-linter on the *rendered* chart, plus hadolint), build + scan (docker build + Trivy failing on HIGH/CRITICAL), and deploy (Helm server-side dry-run, then a `--wait` install, curl smoke test). Linting the rendered output rather than the templates means kube-linter checks exactly what Helm will apply. The deploy job spins up its own kind cluster so every pipeline run is reproducible with zero standing infrastructure. My day-to-day background is Azure DevOps; I chose GitHub Actions here because the repo lives on GitHub and the reviewer can see runs without any external service.
 
 ## 2. Dockerfile Security Choices
 
@@ -24,7 +26,7 @@ The requirement was least privilege plus a multi-stage build. What I did and why
 
 **Non-privileged port.** The app listens on 8000, not 80, so the container never needs `CAP_NET_BIND_SERVICE`. That allows the pod spec to drop ALL capabilities, which it does.
 
-**Defense in depth at the pod level.** The Dockerfile choices are reinforced in `k8s/web-deployment.yaml`: `allowPrivilegeEscalation: false`, `capabilities.drop: ["ALL"]`, `readOnlyRootFilesystem: true` (with a writable emptyDir mounted only at /tmp), and `seccompProfile: RuntimeDefault`. The image is built to survive a read-only root filesystem: no runtime writes outside /tmp, `PYTHONDONTWRITEBYTECODE=1` so Python never tries to write .pyc files.
+**Defense in depth at the pod level.** The Dockerfile choices are reinforced in `chart/templates/web-deployment.yaml`: `allowPrivilegeEscalation: false`, `capabilities.drop: ["ALL"]`, `readOnlyRootFilesystem: true` (with a writable emptyDir mounted only at /tmp), and `seccompProfile: RuntimeDefault`. The image is built to survive a read-only root filesystem: no runtime writes outside /tmp, `PYTHONDONTWRITEBYTECODE=1` so Python never tries to write .pyc files.
 
 **Pinned versions everywhere.** Base image tag (`python:3.12-slim`), every pip dependency, and the Postgres image are pinned. Unpinned tags make builds non-reproducible and let a CVE-carrying update slip in silently. The Trivy step in CI then gates HIGH/CRITICAL CVEs on every build.
 
@@ -62,7 +64,7 @@ The obvious SPOF is the node itself, but that is inherent to the task. The more 
 
 **Secret committed to git.** Wrong for anything real, done here so a reviewer can reproduce everything from a clone. Production answer: External Secrets Operator pulling from Azure Key Vault (my usual setup, with Workload Identity so there are no stored credentials at all), or Sealed Secrets/SOPS if the platform must stay self-contained.
 
-**Plain manifests instead of Helm/Kustomize.** Five YAML files are easier to review than a chart. The moment there is a second environment, I would move to Kustomize overlays (base + dev/staging/prod patches) or a Helm chart. The pipeline already lints with kube-linter, so swapping in `helm lint` is trivial.
+**Helm chart with a single values file (no environment overlays yet).** The app is packaged as a chart so the manifests are parameterised and the pipeline gates on `helm lint` — but I deliberately stopped short of per-environment overlays. With one environment, a `values-staging.yaml` would be dead weight and imply structure that does not exist. The chart is written so adding one is cheap: a second `values-<env>.yaml` (or a Kustomize overlay on the rendered output) with different replicas/resources/hostnames, base templates unchanged. Section 6 covers that promotion flow. The cost of this choice is that the single values file mixes lab defaults (the committed Secret values, NodePort) with things that would legitimately differ per environment; splitting them is the first refactor when a second environment appears.
 
 **Push-based CI/CD instead of GitOps.** kubectl apply from the pipeline is simple and visible for a demo. At enterprise scale I prefer pull-based GitOps: ArgoCD watching an environment repo, with the CI pipeline only building/scanning images and bumping the image tag via PR. That removes cluster credentials from CI entirely and gives drift detection for free.
 
@@ -76,7 +78,7 @@ What changes when this pipeline grows up:
 
 **Branching and promotion.** Trunk-based development. PRs run validate + build + Trivy + deploy-to-ephemeral (exactly today's pipeline). Merge to main deploys to Dev automatically. Promotion to Staging and Prod happens by promoting the same immutable image digest, never rebuilding.
 
-**Environments as code.** Kustomize overlays or Helm values per environment, in either the same repo or a dedicated config repo. Environment-specific settings (replicas, resources, hostnames) live in overlays; the base stays identical everywhere.
+**Environments as code.** Per-environment Helm values files layered on today's chart (`values-dev.yaml` / `values-staging.yaml` / `values-prod.yaml`), or Kustomize overlays, in either the same repo or a dedicated config repo. Environment-specific settings (replicas, resources, hostnames, secret backends) live in the overlay; the chart templates stay identical everywhere.
 
 **GitOps for CD.** ArgoCD per cluster syncing from the config repo. CI's job shrinks to build, test, scan, sign (cosign), push to a registry, and open a PR bumping the tag in the Dev overlay. Promotion to Staging/Prod is a PR from one overlay to the next, which gives approvals, audit trail and rollback (git revert) for free.
 

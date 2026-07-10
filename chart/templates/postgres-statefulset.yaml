@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: postgres
+    {{- include "hello-app.commonLabels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    email: {{ .Values.owner.email | quote }}
+  labels:
+    owner: {{ .Values.owner.name }}
+    app.kubernetes.io/name: postgres
+    {{- include "hello-app.commonLabels" . | nindent 4 }}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: demo-app
+    spec:
+      restartPolicy: Always
+      serviceAccountName: postgres
+      securityContext:
+        # postgres:16.3-alpine ships the postgres user as uid/gid 70. Running as
+        # that user (not root) makes the image entrypoint skip its privileged
+        # chown of PGDATA, which would otherwise fail because the container drops
+        # ALL capabilities (no CAP_CHOWN). fsGroup makes the PVC and emptyDir
+        # volumes group-writable by the same user.
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          ports:
+            - name: pg
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.secret.DB_USER | quote }}, "-d", {{ .Values.config.DB_NAME | quote }}]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.secret.DB_USER | quote }}, "-d", {{ .Values.config.DB_NAME | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # Writable scratch dirs required because the root filesystem is read-only.
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+  # Persistent Volume Claim template: kind ships with the local-path provisioner
+  # as the default StorageClass, so this binds automatically.
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: postgres
+    {{- include "hello-app.commonLabels" . | nindent 4 }}
+spec:
+  clusterIP: None           # headless, stable DNS for the StatefulSet
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: pg

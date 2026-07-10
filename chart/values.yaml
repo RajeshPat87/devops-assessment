@@ -1,0 +1,56 @@
+# Default values for the hello-app chart.
+# A single environment today; the moment there is a second one, these become
+# per-environment overlays (values-dev.yaml / values-staging.yaml / ...) or
+# Kustomize patches. See DESIGN.md > Trade-offs.
+
+# Ownership metadata stamped onto the workloads (enforced by kube-linter's
+# required-label-owner / required-annotation-email checks).
+owner:
+  name: rajesh
+  email: rajeshsqldba87@gmail.com
+
+web:
+  image:
+    repository: hello-web
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent   # image is side-loaded into kind, not pulled
+  replicas: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080            # mapped to host port 8080 in the kind config
+
+postgres:
+  image:
+    repository: postgres
+    tag: "16.3-alpine"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage: 1Gi
+
+# Non-sensitive configuration -> ConfigMap (injected with envFrom).
+config:
+  APP_ENV: "lab"
+  GREETING: "Hello World from Kubernetes"
+  DB_HOST: "postgres"          # headless Service name of the StatefulSet
+  DB_NAME: "appdb"
+  DB_PORT: "5432"
+
+# Lab-only credentials -> Secret. In a real deployment these are NOT in values;
+# they come from External Secrets Operator / Key Vault. See DESIGN.md > Trade-offs.
+secret:
+  DB_USER: "appuser"
+  DB_PASSWORD: "S3cure-Lab-Passw0rd"
+  POSTGRES_DB: "appdb"

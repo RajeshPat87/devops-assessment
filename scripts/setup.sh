@@ -18,11 +18,9 @@ docker build -t hello-web:1.0.0 "$REPO_ROOT/app"
 echo "==> 3/4 Loading image into kind"
 kind load docker-image hello-web:1.0.0 --name "$CLUSTER"
 
-echo "==> 4/4 Deploying two-tier app (dry-run first, then apply)"
-kubectl apply -f "$REPO_ROOT/k8s/" --dry-run=server
-kubectl apply -f "$REPO_ROOT/k8s/"
-kubectl -n demo-app rollout status statefulset/postgres --timeout=180s
-kubectl -n demo-app rollout status deployment/hello-web --timeout=180s
+echo "==> 4/4 Deploying two-tier app with Helm (server-side dry-run first, then apply)"
+helm upgrade --install hello-app "$REPO_ROOT/chart" --namespace demo-app --dry-run=server
+helm upgrade --install hello-app "$REPO_ROOT/chart" --namespace demo-app --wait --timeout 180s
 
 echo
 echo "Done."
