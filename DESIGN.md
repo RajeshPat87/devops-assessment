@@ -85,3 +85,51 @@ What changes when this pipeline grows up:
 **Gates and controls.** Staging gets integration and load tests plus a soak period. Prod requires manual approval through protected environments, deploys progressively (Argo Rollouts canary with Prometheus-based analysis), and auto-rolls-back on SLO burn. Add OPA/Conftest policy checks in CI so "no resource limits" or "image not from our registry" fails before it ever reaches a cluster.
 
 **Identity and secrets.** OIDC federation from the pipeline to the cloud (no long-lived credentials in CI), External Secrets in every cluster, and per-environment service accounts with least-privilege RBAC instead of cluster-admin kubeconfigs.
+    
+10 Essential Cloud Architecture Patterns Every Architect Should Know
+Cloud architecture isn't about memorizing cloud services. 😅 
+
+It's about understanding patterns that consistently solve enterprise problems—regardless of whether you're building on AWS, Azure, or Google Cloud.
+
+Over the years, I've noticed that while cloud providers offer different services, the underlying architectural principles remain remarkably consistent.
+
+That's exactly what this cheat sheet captures.
+
+These are the 10 patterns I see repeatedly in successful enterprise platforms:
+✅ Hub-and-Spoke Networking
+![alt text](image.png)
+✅ Landing Zone Architecture
+![alt text](image-1.png)
+✅ Multi-Account / Multi-Subscription Strategy
+![alt text](image-2.png)
+✅ Zero Trust Security
+![alt text](image-3.png)
+✅ Infrastructure as Code (IaC)
+![alt text](image-4.png)
+✅ Event-Driven Architecture
+![alt text](image-5.png)
+✅ Microservices
+![alt text](image-6.png)
+✅ Shared Services
+![alt text](image-7.png)
+✅ Observability & Operational Excellence
+![alt text](image-8.png)
+✅ Disaster Recovery & Multi-Region Design
+![alt text](image-9.png)
+
+These patterns are not vendor-specific.
+
+They're architectural building blocks that help organizations create platforms that are:
+🔷 Secure by design
+🔷 Governed from day one
+🔷 Operationally scalable
+🔷 Easier to automate
+🔷 More resilient
+🔷 Ready for future growth
+
+One of the biggest lessons I've learned is that successful cloud transformations are rarely about choosing the "right" cloud.
+
+They're about establishing the right architecture patterns and implementing them consistently across the organization.
+
+Whether you're designing a Landing Zone, modernizing applications, or building a multi-cloud platform, these principles provide a solid foundation.
+
