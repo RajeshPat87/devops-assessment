@@ -1,3 +1,9 @@
+# Web tier (stateless Flask app), defined as three resources:
+#   - ServiceAccount : dedicated identity for the pods (no shared default SA)
+#   - Deployment     : replicated, zero-downtime RollingUpdate, hardened
+#                      securityContext (non-root, read-only rootfs, no caps);
+#                      config comes from ConfigMap, DB creds from Secret
+#   - Service        : fronts the pods; NodePort exposes it to the host in kind
 apiVersion: v1
 kind: ServiceAccount
 metadata:
