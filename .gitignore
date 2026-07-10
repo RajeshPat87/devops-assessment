@@ -9,6 +9,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# Claude Code local settings (per-developer, never committed)
+**/.claude/settings.local.json
+
 # Misc
 *.tar
 response.json
