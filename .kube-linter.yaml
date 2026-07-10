@@ -19,3 +19,7 @@ checks:
     # The postgres official image only accepts credentials via env vars, and the
     # web app reads DB creds from env; file-mounted secrets need app changes.
     - "read-secret-from-env-var"
+    # CI lints the *rendered* Helm chart. sorted-keys is a readability check for
+    # hand-authored YAML; key order in generated output is set by the templates
+    # and carries no meaning, so it is not enforced here.
+    - "sorted-keys"

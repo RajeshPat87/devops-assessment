@@ -1,0 +1,8 @@
+apiVersion: v2
+name: hello-app
+description: Two-tier Hello World (Flask + PostgreSQL) for the DevOps assessment
+type: application
+# Chart version is bumped when the packaging changes; appVersion tracks the
+# application image tag that the chart deploys by default.
+version: 0.1.0
+appVersion: "1.0.0"
