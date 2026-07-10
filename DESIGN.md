@@ -96,6 +96,7 @@ Over the years, I've noticed that while cloud providers offer different services
 That's exactly what this cheat sheet captures.
 
 These are the 10 patterns I see repeatedly in successful enterprise platforms:
+
 ✅ Hub-and-Spoke Networking
 ![alt text](image.png)
 ✅ Landing Zone Architecture
