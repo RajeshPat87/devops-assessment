@@ -1,3 +1,9 @@
+# Database tier (stateful PostgreSQL), defined as three resources:
+#   - ServiceAccount : dedicated identity for the pod
+#   - StatefulSet    : single replica with a volumeClaimTemplate for durable
+#                      PGDATA; runs as uid 70 with a hardened securityContext
+#                      (non-root, read-only rootfs, dropped capabilities)
+#   - Service        : headless (clusterIP: None) for stable StatefulSet DNS
 apiVersion: v1
 kind: ServiceAccount
 metadata:
