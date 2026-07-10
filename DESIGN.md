@@ -86,7 +86,8 @@ What changes when this pipeline grows up:
 
 **Identity and secrets.** OIDC federation from the pipeline to the cloud (no long-lived credentials in CI), External Secrets in every cluster, and per-environment service accounts with least-privilege RBAC instead of cluster-admin kubeconfigs.
     
-10 Essential Cloud Architecture Patterns Every Architect Should Know
+**10 Essential Cloud Architecture Patterns Every Architect Should Know
+**
 Cloud architecture isn't about memorizing cloud services. 😅 
 
 It's about understanding patterns that consistently solve enterprise problems—regardless of whether you're building on AWS, Azure, or Google Cloud.
