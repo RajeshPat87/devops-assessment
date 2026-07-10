@@ -155,5 +155,16 @@ jobs:
             sleep 2
           done
 
-          curl -fsS http://localhost:8080/ | tee response.json
+          # The root endpoint opens a fresh DB connection and performs a write
+          # (CREATE TABLE + INSERT) on every call, so like /readyz a single
+          # transient blip against the just-started database should not fail the
+          # pipeline. Retry until it returns a healthy 200.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/ -o response.json; then
+              break
+            fi
+            [ "$i" -eq 30 ] && { echo "/ never returned 200"; cat response.json 2>/dev/null || true; exit 1; }
+            sleep 2
+          done
+          cat response.json
           grep -q "Hello World" response.json
