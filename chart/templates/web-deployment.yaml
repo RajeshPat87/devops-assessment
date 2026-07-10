@@ -94,6 +94,7 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}        # writable /tmp because the root fs is read-only
+---
 apiVersion: v1
 kind: Service
 metadata:
