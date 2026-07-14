@@ -45,6 +45,13 @@ alias kgi='kubectl get ingress'
 alias kgcm='kubectl get configmap'
 alias kdcm='kubectl describe configmap'
 alias kgsec='kubectl get secret'
+alias kdssec='kubectl describe secret'
+# Secret values are base64-encoded, so `kgsec`/`kdssec` won't show them. To decode:
+# All keys in a secret:
+#   kubectl get secret <name> -n <namespace> -o jsonpath='{.data}' \
+#     | jq -r 'to_entries[] | "\(.key): \(.value | @base64d)"'
+# A single key:
+#   kubectl get secret <name> -n <namespace> -o jsonpath='{.data.password}' | base64 -d
 
 # --- Execution & context ---
 alias kaf='kubectl apply -f'
