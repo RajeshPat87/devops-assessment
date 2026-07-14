@@ -232,6 +232,25 @@ gh run view <run-id>                         # per-job summary of a run
 gh run view <run-id> --log-failed            # only the failed steps' logs
 ```
 
+### kubectl shorthands (optional)
+
+`scripts/kubectl-aliases.sh` defines the kubectl aliases used throughout this
+repo's day-to-day work — `kgp` (get pods), `klf` (logs -f), `krr` (rollout
+restart deployment), `kge` (events, newest last), and about 40 more.
+
+```bash
+source scripts/kubectl-aliases.sh                             # this shell only
+echo "source $PWD/scripts/kubectl-aliases.sh" >> ~/.bashrc    # every new shell
+```
+
+Source it, do not execute it: aliases defined by a script that runs in a
+subshell disappear the moment it exits. The script checks for this and tells
+you so rather than silently doing nothing.
+
+These aliases are a convenience for interacting with the cluster by hand.
+Nothing in the repo depends on them — `setup.sh`, `destroy.sh` and CI never
+call `kubectl` through an alias.
+
 ## Dockerfile security summary
 
 Full reasoning in DESIGN.md; the short version:
