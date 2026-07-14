@@ -27,3 +27,9 @@ echo
 echo "Done."
 echo "  App:     http://localhost:8080"
 echo "  Grafana: http://localhost:3000  (admin / admin123)"
+echo
+echo "This cluster's kubeconfig is kept separate from ~/.kube/config."
+echo "To run kubectl against it, paste this into your shell:"
+echo
+echo "  export KUBECONFIG=$KUBECONFIG"
+echo
