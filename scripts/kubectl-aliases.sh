@@ -50,7 +50,6 @@ alias kgsec='kubectl get secret'
 alias kaf='kubectl apply -f'
 alias kdf='kubectl delete -f'
 alias kctx='kubectl config use-context'
-alias kns='kubectl config set-context --current --namespace'
 
 # --- Context & cluster: list / inspect ---
 alias kgctx='kubectl config get-contexts'          # Table of all contexts, * marks the current one
@@ -60,9 +59,43 @@ alias kgcl='kubectl config get-clusters'           # Clusters defined in the kub
 alias kcv='kubectl config view --minify'           # Full config for the active context only
 alias kgcns='kubectl config view --minify -o jsonpath="{..namespace}"' # Active namespace
 
+# --- Namespace switching ---
+# Functions, not aliases: an alias cannot place its arguments anywhere but the end.
+# kns             -> print the active namespace
+# kns demo-app    -> make demo-app the default for every later kubectl command
+kns() {
+  if [ "$#" -eq 0 ]; then
+    kubectl config view --minify -o jsonpath='{..namespace}'
+    echo
+  else
+    kubectl config set-context --current --namespace="$1" >/dev/null &&
+      echo "namespace -> $1 (context: $(kubectl config current-context))"
+  fi
+}
+
+# kcur -> where am I: context + namespace on one line
+kcur() {
+  printf 'context:   %s\nnamespace: %s\n' \
+    "$(kubectl config current-context)" \
+    "$(kubectl config view --minify -o jsonpath='{..namespace}')"
+}
+
 # --- Combined utility ---
-# First stop when a pod is stuck in CrashLoopBackOff:
-alias k-debug='kubectl get pod -o wide && echo "---" && kubectl get events --sort-by=.lastTimestamp | tail -n 10'
+# First stop when a pod is stuck in CrashLoopBackOff.
+# k-debug                  -> active namespace
+# k-debug demo-app         -> that namespace
+# k-debug -n demo-app / -A -> any kubectl flags pass straight through
+k-debug() {
+  local args=()
+  if [ "$#" -gt 0 ] && [ "${1#-}" = "$1" ]; then
+    args=(-n "$1")
+    shift
+  fi
+  args+=("$@")
+  kubectl get pod -o wide "${args[@]}"
+  echo "---"
+  kubectl get events --sort-by=.lastTimestamp "${args[@]}" | tail -n 10
+}
 
 # --- RBAC: get ---
 alias kgr='kubectl get roles'
