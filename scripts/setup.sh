@@ -3,14 +3,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CLUSTER=devops-assessment
 
 echo "==> 1/4 Provisioning cluster + monitoring with Terraform"
 cd "$REPO_ROOT/terraform"
 terraform init -input=false
 terraform apply -auto-approve
 
-export KUBECONFIG="$HOME/.kube/devops-assessment-config"
+# Read these from Terraform so they cannot drift from variables.tf.
+CLUSTER="$(terraform output -raw cluster_name)"
+export KUBECONFIG="$(terraform output -raw kubeconfig_path)"
 
 echo "==> 2/4 Building application image"
 docker build -t hello-web:1.0.0 "$REPO_ROOT/app"
