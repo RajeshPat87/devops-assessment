@@ -101,10 +101,10 @@ Workflow: [.github/workflows/ci-cd.yaml](.github/workflows/ci-cd.yaml)
 1. **validate** - `helm lint`, then kube-linter on the rendered chart, plus
    hadolint on the Dockerfile
 2. **build** - docker build, Trivy scan (fails on HIGH/CRITICAL)
-3. **deploy** (`master`/`main` only) - ephemeral kind cluster, `helm upgrade
+3. **deploy** (`master` only) - ephemeral kind cluster, `helm upgrade
    --install --dry-run=server`, then `--wait` install, curl smoke test
 
-Triggers on push/PR to `master` or `main` touching `app/`, `chart/` or the
+Triggers on push/PR to `master` touching `app/`, `chart/` or the
 workflow itself (`workflow_dispatch` allows manual runs). Every run starts from
 a fresh cluster, so a green pipeline means the whole stack is reproducible from
 scratch.
@@ -352,6 +352,5 @@ referenced a deleted `setup-trivy` tag; pinned to `v0.36.0`, which references
 
 The workflow only watched `main`, but the repo's default branch is `master`, so
 push / pull_request / deploy never fired.
-**Fix (commit `5859858`):** watch both `master` and `main` for push and
-pull_request, gate `deploy` on either branch, and add `workflow_dispatch` for
-manual validation.
+**Fix (commit `5859858`):** watch `master` for push and pull_request, gate
+`deploy` on `master`, and add `workflow_dispatch` for manual validation.

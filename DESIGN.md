@@ -76,7 +76,7 @@ The obvious SPOF is the node itself, but that is inherent to the task. The more 
 
 What changes when this pipeline grows up:
 
-**Branching and promotion.** Trunk-based development. PRs run validate + build + Trivy + deploy-to-ephemeral (exactly today's pipeline). Merge to main deploys to Dev automatically. Promotion to Staging and Prod happens by promoting the same immutable image digest, never rebuilding.
+**Branching and promotion.** Trunk-based development. PRs run validate + build + Trivy + deploy-to-ephemeral (exactly today's pipeline). Merge to master deploys to Dev automatically. Promotion to Staging and Prod happens by promoting the same immutable image digest, never rebuilding.
 
 **Environments as code.** Per-environment Helm values files layered on today's chart (`values-dev.yaml` / `values-staging.yaml` / `values-prod.yaml`), or Kustomize overlays, in either the same repo or a dedicated config repo. Environment-specific settings (replicas, resources, hostnames, secret backends) live in the overlay; the chart templates stay identical everywhere.
 

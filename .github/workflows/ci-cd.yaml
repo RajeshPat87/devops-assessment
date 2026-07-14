@@ -1,17 +1,16 @@
 name: ci-cd
 
 # Triggers on code changes to the app, manifests, or the pipeline itself.
-# Both master and main are watched so the pipeline runs regardless of the
-# repo's default-branch naming; workflow_dispatch allows manual validation.
+# master is the repo's default branch; workflow_dispatch allows manual validation.
 on:
   push:
-    branches: [master, main]
+    branches: [master]
     paths:
       - "app/**"
       - "chart/**"
       - ".github/workflows/ci-cd.yaml"
   pull_request:
-    branches: [master, main]
+    branches: [master]
     paths:
       - "app/**"
       - "chart/**"
@@ -93,7 +92,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
 
