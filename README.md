@@ -46,8 +46,11 @@ cd terraform
 terraform init
 terraform plan     # review before applying
 terraform apply
-export KUBECONFIG=~/.kube/devops-assessment-config
-kubectl get nodes  # one control-plane node, Ready
+
+# kind merges its credentials into ~/.kube/config and selects the new context,
+# so no KUBECONFIG export is needed. Existing contexts are left untouched.
+kubectl config current-context   # kind-devops-assessment
+kubectl get nodes                # one control-plane node, Ready
 ```
 
 **2. Build the application image and load it into kind**

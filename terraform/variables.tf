@@ -11,9 +11,14 @@ variable "kubernetes_version" {
 }
 
 variable "kubeconfig_path" {
-  description = "Where to write the kubeconfig for this cluster"
+  description = <<-EOT
+    Kubeconfig file the cluster credentials are written to. kind merges into this
+    file rather than overwriting it, so existing contexts are preserved, and it
+    removes only its own entries on destroy. Defaults to the standard kubeconfig
+    so kubectl works with no KUBECONFIG export.
+  EOT
   type        = string
-  default     = "~/.kube/devops-assessment-config"
+  default     = "~/.kube/config"
 }
 
 variable "app_namespace" {
