@@ -52,6 +52,14 @@ alias kdf='kubectl delete -f'
 alias kctx='kubectl config use-context'
 alias kns='kubectl config set-context --current --namespace'
 
+# --- Context & cluster: list / inspect ---
+alias kgctx='kubectl config get-contexts'          # Table of all contexts, * marks the current one
+alias kgctxn='kubectl config get-contexts -o name' # Context names only (pipe to fzf/grep)
+alias kcc='kubectl config current-context'         # Just the active context name
+alias kgcl='kubectl config get-clusters'           # Clusters defined in the kubeconfig
+alias kcv='kubectl config view --minify'           # Full config for the active context only
+alias kgcns='kubectl config view --minify -o jsonpath="{..namespace}"' # Active namespace
+
 # --- Combined utility ---
 # First stop when a pod is stuck in CrashLoopBackOff:
 alias k-debug='kubectl get pod -o wide && echo "---" && kubectl get events --sort-by=.lastTimestamp | tail -n 10'
