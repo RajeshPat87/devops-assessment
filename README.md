@@ -292,6 +292,9 @@ not reproducible.
 current `python:3.12-slim` (Debian 13) candidates. hadolint then reported zero
 findings. _(commit `04febe3`)_
 
+
+
+
 ### kube-linter — multiple findings on the raw manifests
 
 The first render tripped several kube-linter checks at once:
