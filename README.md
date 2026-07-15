@@ -82,6 +82,53 @@ Persistence proof: `kubectl -n demo-app delete pod postgres-0`, wait for the
 StatefulSet to recreate it, curl `/` again. The visit counter continues, it
 does not reset.
 
+## Connecting to PostgreSQL
+
+The app's Postgres instance runs as a headless `ClusterIP` service inside the
+cluster. To connect from your local machine:
+
+**1. Port-forward the service**
+
+```bash
+kubectl port-forward svc/postgres -n demo-app 5432:5432
+```
+
+**2. Retrieve the credentials**
+
+```bash
+kubectl get secret db-credentials -n demo-app -o jsonpath='{.data.DB_USER}' | base64 -d
+kubectl get secret db-credentials -n demo-app -o jsonpath='{.data.DB_PASSWORD}' | base64 -d
+kubectl get secret db-credentials -n demo-app -o jsonpath='{.data.POSTGRES_DB}' | base64 -d
+```
+
+**3. Connect with `psql`**
+
+```bash
+psql -h localhost -p 5432 -U appuser -d appdb
+```
+
+Or use the connection string:
+
+```
+postgresql://appuser:<password>@localhost:5432/appdb
+```
+
+**4. Verify the app writes to the database**
+
+The `hello-web` app inserts a row into the `visits` table on every request.
+Hit the endpoint and confirm the count increases:
+
+```bash
+# before
+psql -h localhost -p 5432 -U appuser -d appdb -c 'SELECT count(*) FROM visits;'
+
+# trigger a visit
+curl http://localhost:8080/
+
+# after — count should be +1
+psql -h localhost -p 5432 -U appuser -d appdb -c 'SELECT * FROM visits ORDER BY id DESC LIMIT 5;'
+```
+
 ## Monitoring
 
 Grafana: http://localhost:3000 (user `admin`, password `admin123`, lab only).
